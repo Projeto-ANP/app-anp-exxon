@@ -1,9 +1,15 @@
+import warnings
 import pandas as pd
 import streamlit as st
 from streamlit_dynamic_filters import DynamicFilters
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 import plotly.express as px
+
+# Filter out the specific warnings
+warnings.filterwarnings("ignore", message="A date index has been provided, but it has no associated frequency information*")
+warnings.filterwarnings("ignore", message="No supported index is available. Prediction results will be given with an integer index beginning at `start`.*")
+warnings.filterwarnings("ignore", message="No supported index is available.*")
 
 
 def load_data(file_path):
@@ -45,25 +51,32 @@ def display_plot(dynamic_filters):
     st.header("Regional Analysis")
 
     # Box plot comparing resale prices between regions
-    regional_fig = px.box(dynamic_filters.filter_df(), x="REGIAO", y="PRECO MEDIO REVENDA", color="REGIAO", title="Resale Price Distribution by Region")
+    regional_fig = px.bar(dynamic_filters.filter_df(), x="ESTADO", y="QUANTIDADE0M3",
+                          color="REGIAO", title="Quantity by State")
     st.plotly_chart(regional_fig)
 
     # Plot distribution of average resale prices by state
-    fig_state_price = px.box(dynamic_filters.filter_df(), x='ESTADO', y='PRECO MEDIO REVENDA', color="REGIAO", title='Distribution of Average Resale Prices by State')
+    fig_state_price = px.box(dynamic_filters.filter_df(), x='ESTADO', y='PRECO MEDIO REVENDA',
+                             color="REGIAO", title='Distribution of Average Resale Prices by State')
     st.plotly_chart(fig_state_price)
 
     # Correlation Analysis
     st.header("Correlation Analysis")
 
-    # Correlation heatmap between different variables
-    correlation_matrix = dynamic_filters.filter_df().corr()
-    correlation_fig = px.imshow(correlation_matrix, title="Correlation Heatmap")
-    correlation_fig.update_layout(width=1000, height=800)  # Adjusting the size of the correlation heatmap
-    st.plotly_chart(correlation_fig)
-    
-    # Clear layout settings after plotting graph 1
-    correlation_fig.update_layout(title=None, xaxis_title=None, yaxis_title=None, width=None, height=None)
+    filtered_df = dynamic_filters.filter_df()
+    numeric_columns = filtered_df.select_dtypes(
+        include=['number']).columns.tolist()
 
+    if len(numeric_columns) >= 2:  # Ensure there are at least two numeric columns for correlation
+        correlation_matrix = filtered_df[numeric_columns].corr()
+        correlation_fig = px.imshow(
+            correlation_matrix, title="Correlation Heatmap")
+        # Adjusting the size of the correlation heatmap
+        correlation_fig.update_layout(width=1000, height=800)
+        st.plotly_chart(correlation_fig)
+
+    else:
+        st.warning("Insufficient numeric data to compute correlation.")
 
 
 def sarima_forecast(example_ts, selected_product, selected_state):
@@ -90,7 +103,7 @@ def sarima_forecast(example_ts, selected_product, selected_state):
     # To ensure the forecast aligns correctly on the timeline, we create a new date range starting from the last date
     # of the historical data
     forecast_dates = pd.date_range(
-        start=example_ts.index[-1], periods=len(sarima_forecast) + 1, freq='M')[1:]
+        start=example_ts.index[-1], periods=len(sarima_forecast) + 1, freq='ME')[1:]
 
     # Plotting the corrected visualization using Plotly Express
     fig = px.line()
@@ -105,7 +118,6 @@ def sarima_forecast(example_ts, selected_product, selected_state):
                       )
 
     st.plotly_chart(fig)
-
 
 
 def decompose_time_series(data):
@@ -169,7 +181,7 @@ def decompose_time_series(data):
 
 def main():
     """Main function."""
-    
+
     st.title("ANP and ExxonMobil Dashboard")
     st.markdown("""
         This dashboard provides insights into ANP and ExxonMobil data.
@@ -179,7 +191,7 @@ def main():
     data = load_data("Database//UF-072001-022024.csv")
     data = apply_month_mappings(data)
     data.drop(['DIA'], axis=1, inplace=True)
-    
+
     with st.sidebar:
         display_filters_sidebar(data)
 
