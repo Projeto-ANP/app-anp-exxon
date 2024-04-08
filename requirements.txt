@@ -4,3 +4,4 @@ geopy
 streamlit
 plotly.express
 statsmodels
+streamlit-dynamic-filters
