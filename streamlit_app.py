@@ -16,7 +16,37 @@ def load_data(file_path):
     """Load data from CSV file."""
     return pd.read_csv(file_path, sep=",")
 
+def is_valid_date(date_str):
+    """Function to check if the input is a valid date"""
+    try:
+        pd.to_datetime(date_str)
+        return True
+    except ValueError:
+        return False
 
+def validate_fields(state, product, period_date):
+    """Check if all fields are filled and if the dates are in the correct position"""
+    if state and product and len(period_date) == 2:
+        if not is_valid_date(period_date[0]):
+            st.warning("Invalid start date!")
+            return False
+        if not is_valid_date(period_date[1]):
+            st.warning("Invalid end date!")
+            return False
+        
+        # Convert dates to datetime objects
+        start_date = pd.to_datetime(period_date[0])
+        end_date = pd.to_datetime(period_date[1])
+
+        # Check if the period is longer than 24 months
+        if (end_date - start_date).days <= 24 * 30:  # assuming 30 days per month
+            st.warning("Period should be longer than 24 months!")
+            return False
+
+        return True
+    else:
+        st.warning("Invalid date!")
+        return False
 def apply_month_mappings(data):
     """Apply month names mapping."""
     months = {
@@ -103,7 +133,7 @@ def sarima_forecast(example_ts, selected_product, selected_state):
     # To ensure the forecast aligns correctly on the timeline, we create a new date range starting from the last date
     # of the historical data
     forecast_dates = pd.date_range(
-        start=example_ts.index[-1], periods=len(sarima_forecast) + 1, freq='ME')[1:]
+        start=example_ts.index[-1], periods=len(sarima_forecast) + 1, freq='M')[1:]
 
     # Plotting the corrected visualization using Plotly Express
     fig = px.line()
@@ -134,51 +164,66 @@ def decompose_time_series(data):
     selected_product = st.selectbox(
         'Select a product:', example_data['PRODUTO'].unique())
 
+    min_date = example_data['DATA'].min()
+    max_date = example_data['DATA'].max()
+    period_date = st.date_input("Pick a date", (min_date, max_date), min_value=min_date, max_value=max_date, format="MM.DD.YYYY")
+        
     if st.button('Generate'):
-        # Filter the data according to selections
-        filtered_data = example_data[(example_data['ESTADO'] == selected_state) & (
-            example_data['PRODUTO'] == selected_product)]
+        # Validation and generation
+        if validate_fields(selected_state, selected_product, period_date):
+            
+            # Assuming period_date[0] and period_date[1] are in date format
+            period_date_start = pd.to_datetime(period_date[0])
+            period_date_end = pd.to_datetime(period_date[1])
 
-        # Plot the original time series
-        fig_original = px.line(filtered_data, x=filtered_data.index,
-                               y='QUANTIDADE0M3', title='Original Time Series')
-        st.plotly_chart(fig_original)
+            # Filter the data according to selections
+            filtered_data = example_data[
+                (example_data['ESTADO'] == selected_state) & 
+                (example_data['PRODUTO'] == selected_product) &
+                (example_data['DATA'] >= period_date_start) &
+                (example_data['DATA'] <= period_date_end)]
 
-        # Prepare data for time series analysis
-        example_ts = filtered_data.set_index('DATA')['QUANTIDADE0M3']
+            # Plot the original time series
+            fig_original = px.line(filtered_data, x=filtered_data["DATA"],
+                                y='QUANTIDADE0M3', title='Original Time Series')
+            st.plotly_chart(fig_original)
 
-        # Decompose the time series
-        decomposition = seasonal_decompose(
-            example_ts, model='additive', period=12)
+            # Prepare data for time series analysis
+            example_ts = filtered_data.set_index('DATA')['QUANTIDADE0M3']
 
-        # Plot the decomposition components
-        fig_trend = px.line(x=decomposition.trend.index, y=decomposition.trend)
-        fig_seasonal = px.line(
-            x=decomposition.seasonal.index, y=decomposition.seasonal)
-        fig_residual = px.scatter(
-            x=decomposition.resid.index, y=decomposition.resid)
+            # Decompose the time series
+            decomposition = seasonal_decompose(
+                example_ts, model='additive', period=12)
 
-        # defining plot style
-        fig_trend.update_layout(title=f'Trend Component of product {selected_product} in state {selected_state}',
-                                xaxis_title='Date',
-                                yaxis_title='Quantity (cubic meters)')
-        fig_seasonal.update_layout(title=f'Seasonal Component of product {selected_product} in state {selected_state}',
-                                   xaxis_title='Date',
-                                   yaxis_title='Quantity (cubic meters)')
-        fig_residual.update_layout(title=f'Residual Component {selected_product} in state {selected_state}',
-                                   xaxis_title='Date',
-                                   yaxis_title='Quantity (cubic meters)')
+            # Plot the decomposition components
+            fig_trend = px.line(x=decomposition.trend.index, y=decomposition.trend)
+            fig_seasonal = px.line(
+                x=decomposition.seasonal.index, y=decomposition.seasonal)
+            fig_residual = px.scatter(
+                x=decomposition.resid.index, y=decomposition.resid)
 
-        # Display the component graphs
-        st.subheader('Decomposed Time Series Components')
-        st.plotly_chart(fig_trend)
-        st.plotly_chart(fig_seasonal)
-        st.plotly_chart(fig_residual)
+            # defining plot style
+            fig_trend.update_layout(title=f'Trend Component of product {selected_product} in state {selected_state}',
+                                    xaxis_title='Date',
+                                    yaxis_title='Quantity (cubic meters)')
+            fig_seasonal.update_layout(title=f'Seasonal Component of product {selected_product} in state {selected_state}',
+                                    xaxis_title='Date',
+                                    yaxis_title='Quantity (cubic meters)')
+            fig_residual.update_layout(title=f'Residual Component {selected_product} in state {selected_state}',
+                                    xaxis_title='Date',
+                                    yaxis_title='Quantity (cubic meters)')
 
-        # Plot SAMIRA
-        sarima_forecast(example_ts, selected_product, selected_state)
+            # Display the component graphs
+            st.subheader('Decomposed Time Series Components')
+            st.plotly_chart(fig_trend)
+            st.plotly_chart(fig_seasonal)
+            st.plotly_chart(fig_residual)
 
-
+            # Plot SAMIRA
+            # sarima_forecast(example_ts, selected_product, selected_state)
+        else:
+            st.warning("Fill in all fields correctly before generating!")
+        
 def main():
     """Main function."""
 
@@ -191,6 +236,9 @@ def main():
     data = load_data("Database//UF-072001-022024.csv")
     data = apply_month_mappings(data)
     data.drop(['DIA'], axis=1, inplace=True)
+    
+    # Convert the date column to datetime format
+    data['DATA'] = pd.to_datetime(data['DATA'])
 
     with st.sidebar:
         display_filters_sidebar(data)
