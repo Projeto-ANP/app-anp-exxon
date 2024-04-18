@@ -40,7 +40,7 @@ def validate_fields(state, product, period_date):
 
         # Check if the period is longer than 24 months
         if (end_date - start_date).days <= 24 * 30:  # assuming 30 days per month
-            st.warning("Period should be longer than 24 months!")
+            st.warning("The period cannot be less than 24 months! This is because the time series used for seasonal decomposition doesn't have enough data for accurate seasonal decomposition. The 'season_decompose' method from the Statsmodels library requires at least 24 observations to calculate seasonal decomposition accurately.")
             return False
 
         return True
@@ -222,15 +222,15 @@ def decompose_time_series(data):
             # Plot SAMIRA
             # sarima_forecast(example_ts, selected_product, selected_state)
         else:
-            st.warning("Fill in all fields correctly before generating!")
+            st.warning("There's an issue with the filters, please check and try again.")
         
 def main():
     """Main function."""
 
-    st.title("ANP and ExxonMobil Dashboard")
+    st.title("Dashboard")
     st.markdown("""
-        This dashboard provides insights into ANP and ExxonMobil data.
-        Explore different filters and visualize the data dynamically.
+        This dashboard provides information about the sales of oil and its derivatives. 
+        Explore different filters and visualize data dynamically.
     """)
 
     data = load_data("Database//UF-072001-022024.csv")
