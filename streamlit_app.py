@@ -3,7 +3,6 @@ import pandas as pd
 import streamlit as st
 from streamlit_dynamic_filters import DynamicFilters
 from statsmodels.tsa.seasonal import seasonal_decompose
-from statsmodels.tsa.statespace.sarimax import SARIMAX
 import plotly.express as px
 
 # Filter out the specific warnings
@@ -76,9 +75,7 @@ def display_data_overview(dynamic_filters):
 
 def display_plot(dynamic_filters):
     """Display plot."""
-
-    # Regional Analysis
-    st.header("Regional Analysis")
+    st.header("Dashboard")
 
     # Box plot comparing resale prices between regions
     regional_fig = px.bar(dynamic_filters.filter_df(), x="ESTADO", y="QUANTIDADE0M3",
@@ -91,7 +88,7 @@ def display_plot(dynamic_filters):
     st.plotly_chart(fig_state_price)
 
     # Correlation Analysis
-    st.header("Correlation Analysis")
+    st.header("Correlation Heatmap")
 
     filtered_df = dynamic_filters.filter_df()
     numeric_columns = filtered_df.select_dtypes(
@@ -99,8 +96,7 @@ def display_plot(dynamic_filters):
 
     if len(numeric_columns) >= 2:  # Ensure there are at least two numeric columns for correlation
         correlation_matrix = filtered_df[numeric_columns].corr()
-        correlation_fig = px.imshow(
-            correlation_matrix, title="Correlation Heatmap")
+        correlation_fig = px.imshow(correlation_matrix)
         # Adjusting the size of the correlation heatmap
         correlation_fig.update_layout(width=1000, height=800)
         st.plotly_chart(correlation_fig)
@@ -226,30 +222,38 @@ def decompose_time_series(data):
         
 def main():
     """Main function."""
-
-    st.title("Dashboard")
-    st.markdown("""
-        This dashboard provides information about the sales of oil and its derivatives. 
-        Explore different filters and visualize data dynamically.
-    """)
-
     data = load_data("Database//UF-072001-022024.csv")
     data = apply_month_mappings(data)
     data.drop(['DIA'], axis=1, inplace=True)
     
     # Convert the date column to datetime format
     data['DATA'] = pd.to_datetime(data['DATA'])
+    
+    st.set_page_config(layout="wide")
 
     with st.sidebar:
         display_filters_sidebar(data)
 
     dynamic_filters = DynamicFilters(
         df=data, filters=['ANO', 'MES', 'REGIAO', 'ESTADO', 'PRODUTO'])
+    
+    tab1, tab2, tab3, tab4 = st.tabs(["Home", "Dashboard", "Time Series Decomposition", "Data Overview"])
+    
+    with tab1:
+        st.header("Project")
+        st.markdown("""
+            This dashboard provides information about the sales of oil and its derivatives. 
+            Explore different filters and visualize data dynamically.
+        """)
 
-    display_data_overview(dynamic_filters)
-    display_plot(dynamic_filters)
-    decompose_time_series(data)
+    with tab2:
+        display_plot(dynamic_filters)
 
+    with tab3:
+        decompose_time_series(data)
+        
+    with tab4:
+        display_data_overview(dynamic_filters)
 
 if __name__ == "__main__":
     main()
