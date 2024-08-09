@@ -1,4 +1,5 @@
 /.github
+/.env
 
 # User-specific files
 *.rsuser

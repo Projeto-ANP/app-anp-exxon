@@ -1,6 +1,8 @@
 streamlit
-streamlit_dynamic_filters
 pandas
 numpy
 plotly.express
 statsmodels
+Pillow
+google-generativeai
+python-dotenv
